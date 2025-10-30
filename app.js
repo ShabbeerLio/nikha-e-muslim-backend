@@ -26,6 +26,9 @@ app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/match", matchRoutes);
+app.get("/", (req, res) => {
+  res.json({ message: "Hello Nikha-e-muslim Backend! " });
+});
 
 // ✅ Create HTTP + Socket Server
 const server = createServer(app);
@@ -64,35 +67,35 @@ io.on("connection", (socket) => {
   });
 
   // Send message to chat
-socket.on("sendMessage", async (data) => {
-  try {
-    const { chatId, sender, receiverId, content } = data;
+  socket.on("sendMessage", async (data) => {
+    try {
+      const { chatId, sender, receiverId, content } = data;
 
-    // Broadcast message to the chat room
-    io.to(chatId).emit("receiveMessage", data);
+      // Broadcast message to the chat room
+      io.to(chatId).emit("receiveMessage", data);
 
-    // 🔄 Update lastMessage for both users’ chat lists
-    [sender, receiverId].forEach((userId) => {
-      const receiverSocket = onlineUsers.get(userId);
-      if (receiverSocket) {
-        io.to(receiverSocket).emit("updateChatList", {
-          chatId,
-          lastMessage: {
-            content,
-            createdAt: new Date(),
-            sender,
-            sentByMe: userId === sender,
-            isSeen: userId === sender, // optional: adjust later
-          },
-        });
-      }
-    });
+      // 🔄 Update lastMessage for both users’ chat lists
+      [sender, receiverId].forEach((userId) => {
+        const receiverSocket = onlineUsers.get(userId);
+        if (receiverSocket) {
+          io.to(receiverSocket).emit("updateChatList", {
+            chatId,
+            lastMessage: {
+              content,
+              createdAt: new Date(),
+              sender,
+              sentByMe: userId === sender,
+              isSeen: userId === sender, // optional: adjust later
+            },
+          });
+        }
+      });
 
-    console.log("📩 Message sent & chat list updated");
-  } catch (error) {
-    console.error("❌ sendMessage error:", error.message);
-  }
-});
+      console.log("📩 Message sent & chat list updated");
+    } catch (error) {
+      console.error("❌ sendMessage error:", error.message);
+    }
+  });
 
   // Handle user disconnect
   socket.on("disconnect", () => {
