@@ -5,6 +5,26 @@ import { dateRangeFromAge } from "../utils/dateRangeFromAge.js";
 
 const router = express.Router();
 
+const calculateAge = (dob) => {
+  if (!dob?.year) return null;
+
+  const monthIndex = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+  ].indexOf(dob.month) || 0;
+
+  const birthDate = new Date(dob.year, monthIndex, dob.day || 1);
+  const today = new Date();
+
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+
+  return age;
+};
+
 /**
  * 🔍 Find Matches
  * Example: GET /api/match/find?gender=Female&religion=Muslim&city=Delhi&minAge=20&maxAge=35
@@ -94,6 +114,7 @@ router.get("/nearby", fetchUser, async (req, res) => {
         _id: c._id,
         name: c.name,
         gender: c.gender,
+        age: calculateAge(c.dob), 
         city: c.city,
         profession: c.profession,
         profilePic: c.profilePic,
@@ -169,6 +190,7 @@ router.get("/foryou", fetchUser, async (req, res) => {
         name: c.name,
         gender: c.gender,
         city: c.city,
+        age: calculateAge(c.dob), 
         profession: c.profession,
         profilePic: c.profilePic,
         religion: c.religion,
