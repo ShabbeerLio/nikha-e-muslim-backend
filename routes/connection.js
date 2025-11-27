@@ -30,6 +30,7 @@ router.post("/send/:receiverId", fetchUser, async (req, res) => {
       type: "connection_request",
       fromUser: req.user.id,
       message: "wants to connect",
+      requestId: newReq._id,
     });
 
     // ✅ Send via socket (real-time)
@@ -56,6 +57,9 @@ router.post("/accept/:requestId", fetchUser, async (req, res) => {
     await User.findByIdAndUpdate(reqDoc.receiver, {
       $addToSet: { matches: reqDoc.sender },
     });
+
+    // ❌ Delete pending notification
+    await Notification.deleteOne({ requestId: req.params.requestId });
 
     const newNotif = await Notification.create({
       user: reqDoc.sender,
@@ -155,6 +159,9 @@ router.post("/reject/:id", fetchUser, async (req, res) => {
 
     reqDoc.status = "Rejected";
     await reqDoc.save();
+
+    await Notification.deleteOne({ requestId: req.params.id });
+    
     res.json({ msg: "Connection request rejected" });
   } catch (err) {
     res.status(500).json({ error: err.message });

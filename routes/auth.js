@@ -54,6 +54,8 @@ router.post(
         { expiresIn: "7d" }
       );
 
+      console.log(user,"user")
+
       res.json({
         message: "User registered successfully",
         token,

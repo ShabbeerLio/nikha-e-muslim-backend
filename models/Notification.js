@@ -16,6 +16,7 @@ const notificationSchema = new mongoose.Schema({
   },
   fromUser: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   message: String,
+  requestId: { type: mongoose.Schema.Types.ObjectId, ref: "ConnectionRequest" },
   isRead: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
 });
