@@ -21,6 +21,11 @@ const userSchema = new mongoose.Schema({
     enum: ["Self", "Son", "Daughter", "Brother", "Sister", "Friend", "Other"],
     required: true,
   },
+  role: {
+    type: String,
+    enum: ["admin", "user"],
+    default: "user",
+  },
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
@@ -69,7 +74,7 @@ const userSchema = new mongoose.Schema({
   subscription: {
     plan: {
       type: String,
-      enum: ["Free", "Silver", "Gold", "Premium"],
+      enum: ["Free", "Monthly", "Quarterly", "Yearly"],
       default: "Free",
     },
     expiry: Date,

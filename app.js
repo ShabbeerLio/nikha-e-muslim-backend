@@ -13,6 +13,11 @@ import notificationRoutes from "./routes/notification.js";
 import chatRoutes from "./routes/chat.js";
 import matchRoutes from "./routes/match.js";
 
+import planRoutes from "./routes/plans.js";
+import couponRoutes from "./routes/coupon.js";
+import subscriptionRoutes from "./routes/subscription.js";
+import paymentRoutes from "./routes/payments.js";
+
 connectDB();
 
 const app = express();
@@ -26,6 +31,10 @@ app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/match", matchRoutes);
+app.use("/api/plans", planRoutes);
+app.use("/api/coupons", couponRoutes);
+app.use("/api/subscription", subscriptionRoutes);
+app.use("/api/payment", paymentRoutes);
 app.get("/", (req, res) => {
   res.json({ message: "Hello Nikha-e-muslim Backend! " });
 });
