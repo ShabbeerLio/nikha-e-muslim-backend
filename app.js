@@ -17,12 +17,14 @@ import planRoutes from "./routes/plans.js";
 import couponRoutes from "./routes/coupon.js";
 import subscriptionRoutes from "./routes/subscription.js";
 import paymentRoutes from "./routes/payments.js";
+import passport from "./config/passport.js";
 
 connectDB();
 
 const app = express();
 app.use(cors({ origin: "*" }));
 app.use(express.json());
+app.use(passport.initialize());
 
 // ✅ Routes
 app.use("/api/auth", authRoutes);

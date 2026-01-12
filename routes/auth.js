@@ -7,8 +7,56 @@ import ConnectionRequest from "../models/ConnectionRequest.js";
 import { Chat, Message } from "../models/Message.js";
 import { uploadProfile, uploadImages } from "../utils/upload.js";
 import Notification from "../models/Notification.js";
+import passport from "passport";
+import Otp from "../models/Otp.js";
+import { sendOTP } from "../utils/sendOtp.js";
 
 const router = express.Router();
+
+// Start Google Auth
+router.get(
+  "/google",
+  passport.authenticate("google", { scope: ["profile", "email"] })
+);
+
+router.get(
+  "/google/callback",
+  passport.authenticate("google", {
+    session: false,
+    failureRedirect: `${process.env.FRONTEND_URL}?google=not_registered`,
+  }),
+  (req, res) => {
+    const token = jwt.sign(
+      { user: { id: req.user._id } },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    res.redirect(`${process.env.FRONTEND_URL}?token=${token}`);
+  }
+);
+
+router.post("/signup-send-otp", async (req, res) => {
+  const { email } = req.body;
+
+  const exists = await User.findOne({ email });
+  if (exists) return res.status(400).json({ msg: "Email already registered" });
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+  await Otp.deleteMany({ email, type: "signup" });
+
+  await Otp.create({
+    email,
+    otp,
+    type: "signup",
+    expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+  });
+
+  await sendOTP(email, otp, "signup");
+
+  res.json({ msg: "OTP sent for signup" });
+});
 
 // ✅ Register with Profile Picture Upload
 router.post(
@@ -54,7 +102,7 @@ router.post(
         { expiresIn: "7d" }
       );
 
-      console.log(user,"user")
+      console.log(user, "user");
 
       res.json({
         message: "User registered successfully",
@@ -449,6 +497,59 @@ router.delete("/delete", fetchUser, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+router.post("/forgot-send-otp", async (req, res) => {
+  const { email } = req.body;
+
+  const user = await User.findOne({ email });
+  if (!user) return res.status(404).json({ msg: "User not found" });
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+  await Otp.deleteMany({ email, type: "forgot" });
+
+  await Otp.create({
+    email,
+    otp,
+    type: "forgot",
+    expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+  });
+
+  await sendOTP(email, otp, "forgot");
+
+  res.json({ msg: "OTP sent" });
+});
+
+router.post("/verify-otp", async (req, res) => {
+  const { email, otp } = req.body;
+
+  const record = await Otp.findOne({ email, otp,  type: "forgot" });
+  if (!record) return res.status(400).json({ msg: "Invalid OTP" });
+
+  if (record.expiresAt < new Date())
+    return res.status(400).json({ msg: "OTP expired" });
+
+  res.json({ msg: "OTP verified" });
+});
+
+router.post("/reset-password", async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+
+  const record = await Otp.findOne({ email, otp, type: "forgot" });
+  if (!record) return res.status(400).json({ msg: "OTP not verified" });
+
+  if (record.expiresAt < new Date())
+    return res.status(400).json({ msg: "OTP expired" });
+
+  const salt = await bcrypt.genSalt(10);
+  const hash = await bcrypt.hash(newPassword, salt);
+
+  await User.findOneAndUpdate({ email }, { password: hash });
+
+  await Otp.deleteMany({ email, type: "forgot" });
+
+  res.json({ msg: "Password updated successfully" });
 });
 
 export default router;
