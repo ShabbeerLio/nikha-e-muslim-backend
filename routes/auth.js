@@ -522,9 +522,9 @@ router.post("/forgot-send-otp", async (req, res) => {
 });
 
 router.post("/verify-otp", async (req, res) => {
-  const { email, otp } = req.body;
+  const { email, otp, type } = req.body;
 
-  const record = await Otp.findOne({ email, otp,  type: "forgot" });
+  const record = await Otp.findOne({ email, otp, type });
   if (!record) return res.status(400).json({ msg: "Invalid OTP" });
 
   if (record.expiresAt < new Date())
