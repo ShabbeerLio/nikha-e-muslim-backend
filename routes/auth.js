@@ -10,6 +10,8 @@ import Notification from "../models/Notification.js";
 import passport from "passport";
 import Otp from "../models/Otp.js";
 import { sendOTP } from "../utils/sendOtp.js";
+import Report from "../models/Report.js";
+import { calculateProfileCompletion } from "../utils/calculateProfile.js";
 
 const router = express.Router();
 
@@ -139,7 +141,12 @@ router.get("/me", fetchUser, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select("-password");
     if (!user) return res.status(404).json({ msg: "User not found" });
-    res.json(user);
+    const completion = calculateProfileCompletion(user);
+
+    res.json({
+      ...user.toObject(),
+      profileCompletion: completion,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -188,12 +195,23 @@ router.get("/:id", fetchUser, async (req, res) => {
     }
 
     // Optionally hide email, mobile, etc. for non-owners
-    if (!isOwner) {
-      user.email = undefined;
-      user.mobile = undefined;
+    if (!isOwner && user.contactPrivacy?.isHidden) {
+      const allowed = user.contactPrivacy.allowedUsers.some(
+        (u) => u.toString() === req.user.id
+      );
+      if (!allowed) {
+        user.email = null;
+        user.mobile = null;
+        user.whatsapp = null;
+      }
     }
 
-    res.json(user);
+    const completion = calculateProfileCompletion(user);
+
+    res.json({
+      ...user.toObject(),
+      profileCompletion: completion,
+    });
   } catch (err) {
     console.error("Error fetching user data:", err);
     res.status(500).json({ error: err.message });
@@ -550,6 +568,154 @@ router.post("/reset-password", async (req, res) => {
   await Otp.deleteMany({ email, type: "forgot" });
 
   res.json({ msg: "Password updated successfully" });
+});
+
+// Report user
+router.post("/report/:id", fetchUser, async (req, res) => {
+  try {
+    const reportedUserId = req.params.id;
+    const { reason, description } = req.body;
+
+    if (!reason) return res.status(400).json({ msg: "Reason is required" });
+
+    if (reportedUserId === req.user.id)
+      return res.status(400).json({ msg: "You cannot report yourself" });
+
+    const report = await Report.create({
+      reportedUser: reportedUserId,
+      reportedBy: req.user.id,
+      reason,
+      description,
+    });
+
+    res.json({
+      msg: "User reported successfully",
+      report,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/admin/reports", fetchUser, async (req, res) => {
+  try {
+    const admin = await User.findById(req.user.id);
+    if (admin.role !== "admin")
+      return res.status(403).json({ msg: "Access denied" });
+
+    const reports = await Report.find()
+      .populate("reportedUser", "name email city")
+      .populate("reportedBy", "name email")
+      .sort({ createdAt: -1 });
+
+    res.json(reports);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put("/admin/report/:id", fetchUser, async (req, res) => {
+  try {
+    const admin = await User.findById(req.user.id);
+    if (admin.role !== "admin")
+      return res.status(403).json({ msg: "Access denied" });
+
+    const { status } = req.body;
+
+    const updated = await Report.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Contact Info privacy
+
+router.put("/toggle-contact-privacy", fetchUser, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+
+    user.contactPrivacy.isHidden = !user.contactPrivacy.isHidden;
+    await user.save();
+
+    res.json({
+      msg: `Contact info is now ${
+        user.contactPrivacy.isHidden ? "hidden" : "visible"
+      }`,
+      contactPrivacy: user.contactPrivacy,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/request-contact/:id", fetchUser, async (req, res) => {
+  try {
+    const owner = await User.findById(req.params.id);
+
+    if (!owner) return res.status(404).json({ msg: "User not found" });
+
+    if (!owner.contactPrivacy?.isHidden)
+      return res.status(400).json({ msg: "Contact already public" });
+
+    if (owner.contactPrivacy.allowedUsers.includes(req.user.id))
+      return res.status(400).json({ msg: "Already allowed" });
+
+    // 🔁 Check if request already sent
+    const existing = await Notification.findOne({
+      user: owner._id,
+      fromUser: req.user.id,
+      type: "contact_request",
+    });
+
+    if (existing) return res.status(400).json({ msg: "Request already sent" });
+
+    await Notification.create({
+      user: owner._id,
+      fromUser: req.user.id,
+      type: "contact_request",
+      message: "requested to view your contact info",
+    });
+
+    res.json({ msg: "Contact request sent" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/approve-contact/:id", fetchUser, async (req, res) => {
+  const owner = await User.findById(req.user.id);
+  const requesterId = req.params.id;
+
+  if (!owner.contactPrivacy.allowedUsers.includes(requesterId)) {
+    owner.contactPrivacy.allowedUsers.push(requesterId);
+    await owner.save();
+  }
+
+  await Notification.create({
+    user: requesterId,
+    fromUser: owner._id,
+    type: "contact_approved",
+    message: "approved your contact request",
+  });
+
+  res.json({ msg: "Contact access approved" });
+});
+
+router.post("/reject-contact/:id", fetchUser, async (req, res) => {
+  await Notification.create({
+    user: req.params.id,
+    fromUser: req.user.id,
+    type: "contact_rejected",
+    message: "rejected your contact request",
+  });
+
+  res.json({ msg: "Contact request rejected" });
 });
 
 export default router;

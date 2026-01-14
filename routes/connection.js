@@ -100,8 +100,14 @@ router.get("/all", fetchUser, async (req, res) => {
       $or: [{ sender: req.user.id }, { receiver: req.user.id }],
       status: "Accepted",
     })
-      .populate("sender", "name profilePic dob")
-      .populate("receiver", "name profilePic dob");
+      .populate(
+        "sender",
+        "name profilePic dob sect caste maslak state city qualification"
+      )
+      .populate(
+        "receiver",
+        "name profilePic dob sect caste maslak state city qualification"
+      );
 
     const connectedUsers = await Promise.all(
       connections.map(async (conn) => {
@@ -212,6 +218,30 @@ router.get("/status/:partnerId", fetchUser, async (req, res) => {
       sentByMe: request.sender.toString() === req.user.id,
       requestId: request._id,
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * 🗑️ Delete Connection (Keep chat but disable chatting)
+ */
+router.delete("/delete/:partnerId", fetchUser, async (req, res) => {
+  try {
+    const { partnerId } = req.params;
+
+    const deleted = await ConnectionRequest.findOneAndDelete({
+      $or: [
+        { sender: req.user.id, receiver: partnerId, status: "Accepted" },
+        { sender: partnerId, receiver: req.user.id, status: "Accepted" },
+      ],
+    });
+
+    if (!deleted) {
+      return res.status(404).json({ msg: "Connection not found" });
+    }
+
+    res.json({ msg: "Connection deleted successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

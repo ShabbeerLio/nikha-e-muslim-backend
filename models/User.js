@@ -56,7 +56,17 @@ const userSchema = new mongoose.Schema({
   sect: String,
   caste: String,
   maslak: String,
+  dowry: {
+    type: String,
+    enum: ["Yes", "No", "Depends"],
+    default: "No",
+  },
 
+  nikahAsSunnat: {
+    type: String,
+    enum: ["Yes", "No", "Depends"],
+    default: "Yes",
+  },
   state: String,
   city: String,
   about: String,
@@ -69,6 +79,10 @@ const userSchema = new mongoose.Schema({
   workSector: String,
   profession: String,
   income: String,
+  contactPrivacy: {
+    isHidden: { type: Boolean, default: false },
+    allowedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  },
 
   profilePic: {
     url: String,
